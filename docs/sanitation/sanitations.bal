@@ -245,7 +245,8 @@ function sanitizeSchemaNames(string apiName, string specPath) returns error? {
     map<string> updatedNames = {};
 
     foreach [string, json] [schemaName, schema] in spec.components.schemas.entries() {
-        if schemaName.startsWith(apiName.concat(".")) {
+        boolean schemaNameCheck = schemaName.includes(".");
+        if schemaNameCheck {
             string updatedKey = getSanitizedSchemaName(schemaName);
             updatedSchemas[updatedKey] = schema;
             updatedNames[schemaName] = updatedKey;
@@ -266,7 +267,7 @@ function sanitizeSchemaNames(string apiName, string specPath) returns error? {
 }
 
 function getSanitizedSchemaName(string schemaName) returns string {
-    int? indexOfPeriod = schemaName.indexOf(".");
+    int? indexOfPeriod = schemaName.lastIndexOf(".");
     int substringStartIndex = indexOfPeriod == () ? 0 : indexOfPeriod + 1;
     string updatedKey = schemaName.substring(substringStartIndex);
 
