@@ -13,6 +13,7 @@ _Edition_: Swan Lake
 
 2. Remove unnecessary grouping prefixes from schema names. For example:
    `Api_sales_contract_srvA_Salesorder` -> `A_Salesorder`
+   `com\.sap\.gateway\.srvd_a2x\.api_defect\.v0001\.Defect_Type` -> `Defect`
 
 3. Add operation Ids. This is more user-friendly with SAP-specific scripts. The logic for parameter sanitization is
    reused, making it less complicated for the tool. The pattern is as follows:
