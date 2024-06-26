@@ -173,7 +173,6 @@ function getSanitizedParameterName(string key, string paramName,boolean isODATA4
     regexp:RegExp pathRegex;
     if isODATA4 {
         pathRegex = re `^/([^/]+)?(/[^{]+)?(/[^/{]+)?(/.*)?$`;
-        io:print("In the odata V4 section");
     }else {
         pathRegex = re `/([^(]*)(\(.*\))?(/.*)?`;
     }
