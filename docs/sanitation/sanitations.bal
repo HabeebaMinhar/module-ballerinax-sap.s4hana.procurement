@@ -105,6 +105,11 @@ function sanitizeEnumParamters(string specPath) returns error? {
 
     Specification spec = check openAPISpec.cloneWithType(Specification);
 
+    boolean isODATA4 = false;
+    if (spec.x\-sap\-api\-type=="ODATAV4"){
+        isODATA4 = true;
+    }
+
     map<ParametersItem> selectedParameters = {};
     map<EnumSchema> selectedSchemas = {};
 
@@ -131,7 +136,7 @@ function sanitizeEnumParamters(string specPath) returns error? {
             if items.'enum is () {
                 continue;
             }
-            string sanitizedParamName = getSanitizedParameterName(key, param.name ?: "");
+            string sanitizedParamName = getSanitizedParameterName(key, param.name ?: "",isODATA4);
 
             selectedSchemas[sanitizedParamName] = check param.schema.cloneWithType(EnumSchema);
             selectedParameters[sanitizedParamName] = {
@@ -161,11 +166,18 @@ function sanitizeEnumParamters(string specPath) returns error? {
 
 }
 
-function getSanitizedParameterName(string key, string paramName) returns string {
+function getSanitizedParameterName(string key, string paramName,boolean isODATA4) returns string {
 
     string parameterName = "";
 
-    regexp:RegExp pathRegex = re `/([^(]*)(\(.*\))?(/.*)?`;
+    regexp:RegExp pathRegex;
+    if isODATA4 {
+        pathRegex = re `^/([^/]+)?(/[^{]+)?(/[^/{]+)?(/.*)?$`;
+        io:print("In the odata V4 section");
+    }else {
+        pathRegex = re `/([^(]*)(\(.*\))?(/.*)?`;
+    }
+
     regexp:Groups? groups = pathRegex.findGroups(key);
     if groups is () {
         // Can be requestApproval/ batch query path
@@ -270,6 +282,18 @@ function getSanitizedSchemaName(string schemaName) returns string {
     int? indexOfPeriod = schemaName.lastIndexOf(".");
     int substringStartIndex = indexOfPeriod == () ? 0 : indexOfPeriod + 1;
     string updatedKey = schemaName.substring(substringStartIndex);
+
+    if updatedKey.endsWith("_Type") {
+        updatedKey = updatedKey.substring(0, updatedKey.length() - 5);
+    }
+
+    if updatedKey.endsWith("_Type-create") {
+        updatedKey = "Create" + updatedKey.substring(0, updatedKey.length() - 12);
+    }
+
+    if updatedKey.endsWith("_Type-update") {
+        updatedKey = "Update" + updatedKey.substring(0, updatedKey.length() - 12);
+    }
 
     if updatedKey.endsWith("Type") {
         updatedKey = updatedKey.substring(0, updatedKey.length() - 4);
