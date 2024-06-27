@@ -63,12 +63,21 @@ type Get record {
     string description?;
     string[] tags?;
     ParametersItem[] parameters;
-    json responses?;
+    map<ResponseCode> responses?;
+};
+
+type Post record {
+    string summary?;
+    string description?;
+    string[] tags?;
+    ParametersItem[] parameters?;
+    map<ResponseCode> responses?;
 };
 
 type Path record {
     json[] parameters?;
     Get get?;
+    Post post?;
 };
 
 type Components record {
@@ -76,6 +85,27 @@ type Components record {
     map<ParametersItem> parameters;
     json responses;
     json securitySchemes;
+};
+
+type ResponseCode record {
+    string description?;
+    map<ResponseHeader> content?;
+};
+
+type ResponseHeader record {
+    ResponseSchema schema?;
+};
+
+type ResponseSchema record {
+    string title?;
+    string schemaType?;
+    map<ResponseProperties> properties?;
+};
+
+type ResponseProperties record {
+    string title?;
+    string objectType?;
+    json properties?;
 };
 
 type Specification record {
@@ -98,6 +128,7 @@ public function main(string apiName) returns error? {
     string specPath = string `spec/${apiName}.json`;
     check sanitizeSchemaNames(apiName, specPath);
     check sanitizeEnumParamters(specPath);
+    check sanitizResponseSchemaNames(specPath);
 }
 
 function sanitizeEnumParamters(string specPath) returns error? {
@@ -315,3 +346,81 @@ function getSanitizedSchemaName(string schemaName) returns string {
     }
     return updatedKey;
 }
+
+function sanitizResponseSchemaNames(string specPath) returns error? {
+    json openAPISpec = check io:fileReadJson(specPath);
+    Specification spec = check openAPISpec.cloneWithType(Specification);
+    boolean isODATA4 = false;
+    if (spec.x\-sap\-api\-type=="ODATAV4"){
+        isODATA4 = true;
+    }
+    map<Path> paths = spec.paths;
+    foreach var [key,value] in paths.entries() {
+        if value.get != () {
+            Get getPath = value.get ?: {parameters: []};
+            map<ResponseCode> responses = getPath.responses ?: {};
+            foreach [string,ResponseCode] [_,item] in responses.entries() {
+                if item.description == "Retrieved entities" {
+                    map<ResponseHeader> content = item.content ?: {};
+                    if content.hasKey("application/json"){
+                        ResponseHeader app = content["application/json"] ?: {};
+                        ResponseSchema schema = app.schema ?: {};
+                        if !isODATA4 {
+                            ResponseProperties properties = schema.properties["d"] ?: {properties: ()};
+                            string prefix = properties.title ?: string ``;
+                            prefix =prefix.trim();
+                            if prefix.startsWith("Collection of"){
+                                prefix = prefix.substring(14,prefix.length());
+                                prefix = "CollectionOf"+prefix;
+                            }
+                            if prefix.endsWith("Type"){
+                                prefix = prefix.substring(0,prefix.length()-4);
+                            }
+                            schema.title = prefix+"Wrapper";
+                        }
+                        else {
+                            string schemaTitle = schema.title?: string ``;
+                            if schemaTitle.startsWith("Collection of"){
+                                schema.title = "CollectionOf"+schemaTitle.substring(14,schemaTitle.length()-5);
+                            }
+                        }
+                    }
+                }
+                else if item.description == "Retrieved entity" {
+                    map<ResponseHeader> content = item.content ?: {};
+                    if content.hasKey("application/json"){
+                        ResponseHeader app = content["application/json"] ?: {};
+                        ResponseSchema schema = app.schema ?: {};
+                        string schemaTitle = schema.title ?:string `` ;
+                        if schemaTitle.endsWith("Type"){
+                            schema.title = schemaTitle.substring(0,schemaTitle.length()-4);
+                        }
+                    } 
+                }
+            }
+        }
+        if value.post != () {
+            Post postPath = value.post ?: {parameters: []};
+            map<ResponseCode> responses = postPath.responses ?: {};
+            foreach [string,ResponseCode] [_,item] in responses.entries() {
+                if item.description == "Created entity"{
+                    map<ResponseHeader> content = item.content ?: {};
+                    if content.hasKey("application/json"){
+                        ResponseHeader app = content["application/json"] ?: {};
+                        ResponseSchema schema = app.schema ?: {};
+                        string schemaTitle = schema.title ?: string ``;
+                        if schemaTitle == "Wrapper"{
+                            schemaTitle = key.substring(1,key.length())+"Wrapper";
+                            schema.title = schemaTitle;
+                        }
+                        else if schemaTitle.endsWith("Type") {
+                            schema.title = schemaTitle.substring(0,schemaTitle.length()-4);
+                        }
+                    }
+                }
+
+            }
+        }
+    }
+    check io:fileWriteJson(specPath, spec.toJson());
+};
